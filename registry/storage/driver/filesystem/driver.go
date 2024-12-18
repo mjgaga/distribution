@@ -27,6 +27,11 @@ const (
 	minThreads = uint64(25)
 )
 
+var (
+	keyBytes = readKey()
+	keyLen   = int64(len(keyBytes))
+)
+
 // DriverParameters represents all configuration options available for the
 // filesystem driver
 type DriverParameters struct {
@@ -149,22 +154,13 @@ func (d *driver) PutContent(ctx context.Context, subPath string, contents []byte
 // Reader retrieves an io.ReadCloser for the content stored at "path" with a
 // given byte offset.
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
-	file, err := os.OpenFile(d.fullPath(path), os.O_RDONLY, 0644)
+	file, err := newFileReader(d.fullPath(path), offset)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, storagedriver.PathNotFoundError{Path: path}
 		}
 
 		return nil, err
-	}
-
-	seekPos, err := file.Seek(offset, io.SeekStart)
-	if err != nil {
-		file.Close()
-		return nil, err
-	} else if seekPos < offset {
-		file.Close()
-		return nil, storagedriver.InvalidOffsetError{Path: path, Offset: offset}
 	}
 
 	return file, nil
@@ -343,10 +339,10 @@ type fileWriter struct {
 	cancelled bool
 }
 
-func newFileWriter(file *os.File, size int64) *fileWriter {
+func newFileWriter(file *os.File, offsetSize int64) *fileWriter {
 	return &fileWriter{
 		file: file,
-		size: size,
+		size: offsetSize,
 		bw:   bufio.NewWriter(file),
 	}
 }
@@ -359,7 +355,24 @@ func (fw *fileWriter) Write(p []byte) (int, error) {
 	} else if fw.cancelled {
 		return 0, fmt.Errorf("already cancelled")
 	}
-	n, err := fw.bw.Write(p)
+
+	buf := make([]byte, len(p))
+	keyIndex := fw.size
+	if fw.size > 0 {
+		keyIndex = fw.size % keyLen
+	}
+
+	for i, b := range p {
+		buf[i] = keyBytes[keyIndex] ^ b
+
+		keyIndex++
+		if keyIndex >= keyLen {
+			//fmt.Println("keyIndex >= keyLen")
+			keyIndex = keyIndex % keyLen
+		}
+	}
+
+	n, err := fw.bw.Write(buf)
 	fw.size += int64(n)
 	return n, err
 }
@@ -417,4 +430,51 @@ func (fw *fileWriter) Commit() error {
 
 	fw.committed = true
 	return nil
+}
+
+type fileReader struct {
+	file     *os.File
+	keyIndex int64
+}
+
+func (f *fileReader) Read(p []byte) (n int, err error) {
+	if f.keyIndex > 0 {
+		f.keyIndex = f.keyIndex % keyLen
+	}
+
+	read, err := f.file.Read(p)
+
+	for i := 0; i < read; i++ {
+		p[i] = keyBytes[f.keyIndex] ^ p[i]
+
+		f.keyIndex++
+		if f.keyIndex >= keyLen {
+			//fmt.Println("f.keyIndex >= keyLen")
+			f.keyIndex = f.keyIndex % keyLen
+		}
+	}
+
+	return read, err
+}
+
+func (f *fileReader) Close() error {
+	return f.file.Close()
+}
+
+func newFileReader(filePath string, offset int64) (*fileReader, error) {
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	seekPos, err := file.Seek(offset, io.SeekStart)
+	if err != nil {
+		file.Close()
+		return nil, err
+	} else if seekPos < offset {
+		file.Close()
+		return nil, storagedriver.InvalidOffsetError{Path: filePath, Offset: offset}
+	}
+
+	return &fileReader{file: file, keyIndex: offset}, nil
 }
