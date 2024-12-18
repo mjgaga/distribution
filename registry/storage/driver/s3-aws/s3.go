@@ -1,3 +1,6 @@
+//go:build include_s3
+// +build include_s3
+
 // Package s3 provides a storagedriver.StorageDriver implementation to
 // store blobs in Amazon S3 cloud storage.
 //

@@ -1,3 +1,6 @@
+//go:build include_swift
+// +build include_swift
+
 // Package swift provides a storagedriver.StorageDriver implementation to
 // store blobs in Openstack Swift object storage.
 //

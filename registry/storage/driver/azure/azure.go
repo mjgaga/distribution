@@ -1,3 +1,6 @@
+//go:build include_azure
+// +build include_azure
+
 // Package azure provides a storagedriver.StorageDriver implementation to
 // store blobs in Microsoft Azure Blob Storage Service.
 package azure
