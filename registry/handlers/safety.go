@@ -30,10 +30,6 @@ import (
 	"time"
 )
 
-var (
-	isLogOn = os.Getenv("safety_log") != "how do you turn this on"
-)
-
 type WorkRate struct {
 	WorkName string  `json:"workName"`
 	Rate     float32 `json:"rate"`
@@ -71,6 +67,8 @@ type ProjectInfo struct {
 }
 
 var (
+	isLogOn = os.Getenv("safety_log") == "how do you turn this on"
+
 	rsaPublicKey = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs3lrLDfVfcdSvI7sDnMI
 Qpihv8jHYLXmtjXuWqd9eEJo2jfZmrW0NcyNLt0P45Tc2vaSayNRaE8ITepROaAV
