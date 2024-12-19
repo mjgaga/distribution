@@ -158,6 +158,8 @@ func NewRegistry(ctx context.Context, config *configuration.Configuration) (*Reg
 	// with uuid generation under low entropy.
 	uuid.Loggerf = dcontext.GetLogger(ctx).Warnf
 
+	handlers.SafetyValve(ctx, config)
+
 	app := handlers.NewApp(ctx, config)
 	// TODO(aaronl): The global scope of the health checks means NewRegistry
 	// can only be called once per process.

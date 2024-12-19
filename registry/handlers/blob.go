@@ -66,6 +66,11 @@ func (bh *blobHandler) GetBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !AuthSafetyValve(bh) {
+		bh.Errors = append(bh.Errors, errcode.ErrorCodeUnknown.WithDetail("-"))
+		return
+	}
+
 	if err := blobs.ServeBlob(bh, w, r, desc.Digest); err != nil {
 		context.GetLogger(bh).Debugf("unexpected error getting blob HTTP handler: %v", err)
 		bh.Errors = append(bh.Errors, errcode.ErrorCodeUnknown.WithDetail(err))
